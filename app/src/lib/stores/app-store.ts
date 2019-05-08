@@ -3579,10 +3579,12 @@ export class AppStore extends TypedBaseStore<IAppState> {
       this.emitUpdate()
     }
   }
+
   private async updateStashEntryCountMetric(repository: Repository) {
-    const lastStashEntryCheck = await this.repositoriesStore.getLastStashCheckDate(
-      repository
-    )
+    console.time('lastStashEntryCheck')
+    const lastStashEntryCheck = getLastStashEntryCheck(repository.id)
+    console.timeEnd('lastStashEntryCheck')
+
     const dateNow = moment()
     const threshold = dateNow.subtract(24, 'hours')
     if (lastStashEntryCheck == null || threshold.isAfter(lastStashEntryCheck)) {
@@ -3590,10 +3592,14 @@ export class AppStore extends TypedBaseStore<IAppState> {
       // the given repo
 
       try {
+        console.time('getStashSize')
         const stashSize = await getStashSize(repository)
+        console.timeEnd('getStashSize')
         this.statsStore.addStashEntriesCreatedOutsideDesktop(stashSize)
       } finally {
-        await this.repositoriesStore.updateLastStashCheckDate(repository)
+        console.time('setLastStashEntryCheck')
+        setLastStashEntryCheck(repository.id)
+        console.timeEnd('setLastStashEntryCheck')
       }
     }
   }
@@ -4430,4 +4436,18 @@ function getBehindOrDefault(aheadBehind: IAheadBehind | null): number {
   }
 
   return aheadBehind.behind
+}
+
+function getLastStashEntryCheck(id: number): Date | null {
+  const lastStashNumber = getNumber(`last-stash-check-${id}`) || null
+  if (lastStashNumber === null) {
+    return null
+  }
+
+  return new Date(lastStashNumber)
+}
+
+function setLastStashEntryCheck(id: number) {
+  const now = Date.now()
+  setNumber(`last-stash-check-${id}`, now)
 }
